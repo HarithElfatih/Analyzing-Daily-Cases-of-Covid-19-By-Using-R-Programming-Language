@@ -1,0 +1,244 @@
+---
+title: "data_analysis_covid"
+author: "ELharith Mohamed"
+date: "2022-10-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Cleaning your workspace
+```{r}
+rm(list = ls())
+```
+
+# Load my libraries
+
+```{r}
+library(tidyverse)
+library(reshape2)
+library(lubridate)
+library(readxl)
+
+```
+
+# Loading covid-19 data
+```{r}
+tb <- read_csv("time_series_covid19_confirmed_global.csv")
+
+```
+
+# Cleaning Our Dataset
+```{r}
+# Dropped the Uneeded columns
+tb_1 <- subset(tb, select = -c (`Province/State`, Lat, Long)) 
+
+# Choosing our desired Countries data 
+tb_2 <- filter(tb_1, tb_1$`Country/Region` == "Egypt" | tb_1$`Country/Region` == "Qatar")
+
+# Transposing our data & adding it to a data frame
+tb_3 <- as.data.frame(t(tb_2[,2:length(tb_2[1,])])) 
+
+# naming our columns in the new data frame
+names(tb_3) <- t(tb_2[,1])
+
+# Exracting the dates from our Data frame
+current_dates <- names(tb_2)[2:length(tb_2[1,])]
+
+# adding the date column to my data frame
+tb_3$date <- mdy(current_dates)
+
+tail(tb_3)
+
+```
+
+
+
+```{r}
+# Finding the daily counts from the cumlative data in Egypt
+
+egypt_daily_counts <- c(0, diff(tb_3[,1]))
+qatar_daily_counts <- c(0, diff(tb_3[,2]))
+
+# Creating a data frame for Egypt's Data
+egypt_daily_cases <- data.frame(Daily_cases = egypt_daily_counts, date = tb_3$date)
+
+# Creating a data frame for Qatar's Data
+qatar_daily_cases <- data.frame(Daily_cases = qatar_daily_counts, date = tb_3$date)
+
+
+tail(egypt_daily_cases)
+
+```
+
+# Checking Our Data 
+```{r}
+
+nrow(egypt_daily_cases)
+nrow(qatar_daily_cases)
+
+```
+
+```{r}
+x_1 = egypt_daily_cases[(duplicated(egypt_daily_cases$date)),]
+x_2 = qatar_daily_cases[(duplicated(qatar_daily_cases$date)),]
+x_1
+x_2
+
+```
+
+# Plotting Our Covid-19 data in Egypt & Qatar
+```{r}
+## Plotting Egypt's Data
+egyptplot <- ggplot(egypt_daily_cases, aes(x=date, y = Daily_cases))
+
+egyptplot + geom_point() + stat_smooth(span = 0.3) + ggtitle(paste("Daily Cases in Egypt"))
+
+## Plotting Qatar's Data
+qatarplot <- ggplot(egypt_daily_cases, aes(x=date, y = Daily_cases))
+
+qatarplot + geom_point() + stat_smooth(span = 0.3) + ggtitle(paste("Daily Cases in Qatar"))
+
+```
+# Loading Google Mobility data in Egypt
+```{r}
+
+eg_mob_2020 <- read_csv("Region_Mobility_Report_CSVs/2020_EG_Region_Mobility_Report.csv")
+eg_mob_2021 <- read_csv("Region_Mobility_Report_CSVs/2021_EG_Region_Mobility_Report.csv")
+eg_mob_2022 <- read_csv("Region_Mobility_Report_CSVs/2022_EG_Region_Mobility_Report.csv")
+eg_mob_all <- rbind(eg_mob_2020, eg_mob_2021,eg_mob_2022)
+tail(eg_mob_all)
+nrow(eg_mob_all)
+
+```
+
+
+
+
+
+```{r}
+# Loading Google Mobility data in Qatar
+
+qa_mob_2020 <- read_csv("Region_Mobility_Report_CSVs/2020_QA_Region_Mobility_Report.csv")
+qa_mob_2021 <- read_csv("Region_Mobility_Report_CSVs/2021_QA_Region_Mobility_Report.csv")
+qa_mob_2022 <- read_csv("Region_Mobility_Report_CSVs/2022_QA_Region_Mobility_Report.csv")
+qa_mob_all <- rbind(qa_mob_2020,qa_mob_2021,qa_mob_2022)
+tail(qa_mob_all)
+nrow(qa_mob_all)
+
+```
+
+# Cleaning Our Data By Removing rows with country_region = NA
+```{r}
+eg_mob_all_2 <- eg_mob_all[is.na(eg_mob_all$country_region),]
+
+qa_mob_all_2 <- qa_mob_all[is.na(qa_mob_all$country_region),]
+
+eg_mob_all_2
+qa_mob_all_2
+
+```
+# Checking Duplicated data on Egypt & Qatar Data
+```{r}
+e <- eg_mob_all[duplicated(eg_mob_all$date),]
+e <- e[order(e$date, decreasing = FALSE),]
+
+x <- qa_mob_all[duplicated(qa_mob_all$date),]
+x <- x[order(x$date, decreasing = FALSE),]
+
+e
+qa_mob_all[(qa_mob_all$date == "2020-02-15	"),]
+
+```
+# Removing Duplicated data 
+```{r}
+
+gg_tbl <- eg_mob_all %>% group_by(date) %>% summarise_if(is.numeric, sum,na.rm =TRUE)
+
+gg_tbll <- qa_mob_all %>% group_by(date) %>% summarise_if(is.numeric, sum,na.rm =TRUE)
+
+nrow(gg_tbl)
+nrow(gg_tbll)
+
+```
+# Merging Egypt Data 
+```{r}
+eg_merged_data <- merge(x = gg_tbl, y = egypt_daily_cases, by= "date", all.y = TRUE)
+nrow(eg_merged_data)
+
+```
+
+# Merging Qatar Data 
+```{r}
+qa_merged_data <- merge(x = gg_tbll, y = qatar_daily_cases, by= "date", all.y = TRUE)
+nrow(qa_merged_data)
+
+```
+
+
+# standardization step  for Egypt's Data 
+```{r}
+eg_merged_data_c2 <- eg_merged_data %>% dplyr::select(2:8)
+
+# Scaling our Data / standardization step 
+
+eg_merged_data_c2_scaled <- data.frame(scale(eg_merged_data_c2, center = TRUE, scale = TRUE))
+
+eg_merged_data_c2_scaled$date = eg_merged_data$date
+
+nrow(eg_merged_data_c2_scaled)
+```
+
+# standardization step  for Qatar's Data 
+```{r}
+
+qa_merged_data_c2 <- qa_merged_data %>% dplyr::select(2:8)
+
+# Scaling our Data / standardization step 
+
+qa_merged_data_c2_scaled <- data.frame(scale(qa_merged_data_c2, center = TRUE, scale = TRUE))
+
+qa_merged_data_c2_scaled$date = qa_merged_data$date
+
+head(qa_merged_data_c2_scaled)
+
+```
+
+
+# Selecting our Columns 
+```{r}
+select_columns <- c("Daily_cases","workplaces_percent_change_from_baseline",  "residential_percent_change_from_baseline")
+```
+
+
+# Plotting Egypt's Data 
+````{r}
+eg_melt <- melt(eg_merged_data_c2_scaled, measure.vars = select_columns, value.name = "Value", variable.name = "variable")
+eg_melt_2 <- eg_melt[!(is.na(eg_melt$Value)),]
+nrow(eg_melt_2)
+eg_plot <- ggplot(eg_melt_2, aes(x = date, y = Value, color = variable)) + stat_smooth(span = 0.15)
+eg_plot  + ggtitle(paste("Egypt Data"))
+
+```
+
+# Plotting Qatar's Data 
+
+```{r}
+
+qa_melt <- melt(qa_merged_data_c2_scaled, measure.vars = select_columns, value.name = "Value", variable.name = "variable")
+qa_melt_2 <- qa_melt[!(is.na(eg_melt$Value)),]
+
+qa_plot <- ggplot(qa_melt_2, aes(x = date, y = Value, color = variable)) + stat_smooth(span = 0.15)
+qa_plot  + ggtitle(paste("Qatar Data"))
+
+```
+
+
+
+```{r}
+
+
+```
+
